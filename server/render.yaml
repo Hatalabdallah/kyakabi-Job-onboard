@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kyakabi-api
+    runtime: node
+    repo: https://github.com/Hatalabdallah/kyakabi-Job-onboard
+    branch: main
+    buildCommand: cd server && npm install && npx prisma generate
+    startCommand: cd server && npm run dev
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_ENCRYPTION
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Kyakabi Group Limited
+      - key: ADMIN_WHATSAPP
+        sync: false
+      - key: NODE_ENV
+        value: production

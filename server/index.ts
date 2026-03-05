@@ -50,6 +50,27 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadDir));
 
+// Production CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://kyakabi-recruit.vercel.app',
+  'https://kyakabi.com',
+  'https://www.kyakabi.com'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
+
 // Request logging middleware (only in development)
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
@@ -76,7 +97,6 @@ async function testConnection() {
 testConnection();
 
 // Middleware
-app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -316,16 +336,16 @@ app.post('/api/profile/:candidateId', upload.fields([
       }).catch(err => console.error('Background email send failed:', err));
     }
     
-  const responseCandidate = {
-    ...updatedCandidate,
-    profile: updatedCandidate.profile ? {
-      ...updatedCandidate.profile,
-      cvUrl: updatedCandidate.profile.cvUrl ? `${req.protocol}://${req.get('host')}${updatedCandidate.profile.cvUrl}` : null,
-      portfolioUrl: updatedCandidate.profile.portfolioUrl ? `${req.protocol}://${req.get('host')}${updatedCandidate.profile.portfolioUrl}` : null,
-      certificatesUrl: (updatedCandidate.profile as any).certificatesUrl ? 
-        ((updatedCandidate.profile as any).certificatesUrl as string[]).map((url: string) => `${req.protocol}://${req.get('host')}${url}`) : [],
-    } : null
-  };
+    const responseCandidate = {
+      ...updatedCandidate,
+      profile: updatedCandidate.profile ? {
+        ...updatedCandidate.profile,
+        cvUrl: updatedCandidate.profile.cvUrl ? `${req.protocol}://${req.get('host')}${updatedCandidate.profile.cvUrl}` : null,
+        portfolioUrl: updatedCandidate.profile.portfolioUrl ? `${req.protocol}://${req.get('host')}${updatedCandidate.profile.portfolioUrl}` : null,
+        certificatesUrl: updatedCandidate.profile.certificatesUrl ? 
+          (updatedCandidate.profile.certificatesUrl as string[]).map((url: string) => `${req.protocol}://${req.get('host')}${url}`) : [],
+      } : null
+    };
 
     res.json({
       message: 'Profile saved successfully',
