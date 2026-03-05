@@ -96,6 +96,7 @@ Application runs on:
 
 ```
 http://localhost:8080
+https://recruit.kyakabi.com/#admin
 ```
 
 ---
