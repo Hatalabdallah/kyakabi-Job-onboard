@@ -5,17 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  getCandidateByEmail,
-  hashPassword,
-  generateCandidateId,
-  generatePassword,
-  saveCandidate,
-  setCurrentUser,
-  getCandidateByCandidateId,
-  type Candidate,
-} from "@/lib/storage";
-import { sendSignupEmail, sendSignupWhatsApp } from "@/lib/notifications";
+import { api, type Candidate } from "@/lib/api";
 import logoImg from "@/assets/logo.png";
 
 const ROLES = [
@@ -52,42 +42,22 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
   const [signupPassword, setSignupPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
-  const [generatedCreds, setGeneratedCreds] = useState<{ candidateId: string; password: string } | null>(null);
   const [signupStep, setSignupStep] = useState<"form" | "credentials">("form");
+  const [newCandidate, setNewCandidate] = useState<Candidate | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
 
-    const candidates = [
-      getCandidateByCandidateId(loginId.toUpperCase()),
-      ...(!loginId.includes('-') ? [{ email: loginId } as Candidate] : []),
-    ].filter(Boolean);
-
-    const candidate = getCandidateByCandidateId(loginId.toUpperCase()) ||
-      (loginId.includes('@') ? candidates[0] : null);
-
-    const byEmail = loginId.includes('@') ? getCandidateByEmail(loginId) : null;
-    const user = candidate || byEmail;
-
-    if (!user) {
-      setError("Invalid Candidate ID or email. Please check and try again.");
+    try {
+      const result = await api.login(loginId, loginPass);
+      onLogin(result.candidate);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const hashed = hashPassword(loginPass);
-    if (user.password !== hashed) {
-      setError("Incorrect password. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    setCurrentUser(user);
-    setLoading(false);
-    onLogin(user);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -106,49 +76,29 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
       setError("Passwords do not match.");
       return;
     }
-    if (getCandidateByEmail(signupEmail)) {
-      setError("An account with this email already exists.");
-      return;
-    }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
 
-    const candidateId = generateCandidateId();
-    const generatedPass = generatePassword();
-
-    const newCandidate: Candidate = {
-      id: `cand-${Date.now()}`,
-      candidateId,
-      email: signupEmail,
-      password: hashPassword(signupPassword),
-      role: selectedRole,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveCandidate(newCandidate);
-    setGeneratedCreds({ candidateId, password: generatedPass });
-
-    // Send notifications
-    await sendSignupEmail({
-      to_email: signupEmail,
-      to_name: signupEmail.split('@')[0],
-      role: selectedRole,
-      candidate_id: candidateId,
-      generated_password: signupPassword,
-    });
-    sendSignupWhatsApp(signupEmail.split('@')[0], candidateId, selectedRole, signupPassword);
-
-    setLoading(false);
-    setSignupStep("credentials");
+    try {
+      const result = await api.signup({
+        email: signupEmail,
+        password: signupPassword,
+        role: selectedRole
+      });
+      
+      setNewCandidate(result.candidate);
+      setSignupStep("credentials");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const proceedToProfile = () => {
-    const candidate = getCandidateByEmail(signupEmail)!;
-    setCurrentUser(candidate);
-    onLogin(candidate);
+    if (newCandidate) {
+      onLogin(newCandidate);
+    }
   };
 
   return (
@@ -292,13 +242,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                         <span className="flex items-center gap-2">Sign In <ChevronRight className="h-4 w-4" /></span>
                       )}
                     </Button>
-
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">
-                        Demo: Use Candidate ID <strong>KG-AZ2024</strong> or email <strong>john.mukasa@example.com</strong>
-                        <br />Password: <strong>Test@1234</strong>
-                      </p>
-                    </div>
                   </form>
                 </motion.div>
               ) : (
@@ -348,7 +291,10 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                             <Label className="text-sm font-medium">Confirm Password *</Label>
                             <div className="relative mt-1.5">
                               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input type="password" placeholder="Re-enter password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="pl-10" required />
+                              <Input type={showPass ? "text" : "password"} placeholder="Re-enter password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="pl-10 pr-10" required />
+                                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
                             </div>
                           </div>
 
@@ -378,7 +324,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                           <h3 className="font-semibold text-sm text-accent-foreground mb-2">Your Login Credentials</h3>
                           <div className="flex items-center justify-between bg-card rounded-lg px-4 py-2.5">
                             <span className="text-xs text-muted-foreground">Candidate ID</span>
-                            <span className="font-mono font-bold text-primary">{generatedCreds?.candidateId}</span>
+                            <span className="font-mono font-bold text-primary">{newCandidate?.candidateId}</span>
                           </div>
                           <div className="flex items-center justify-between bg-card rounded-lg px-4 py-2.5">
                             <span className="text-xs text-muted-foreground">Email</span>

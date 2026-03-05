@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Calendar, Mail, MessageCircle, Download, LogOut } from "lucide-react";
+import { CheckCircle2, Calendar, MessageCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { sendSubmissionEmail, sendSubmissionWhatsApp } from "@/lib/notifications";
-import { type Candidate, setCurrentUser } from "@/lib/storage";
+import { type Candidate } from "@/lib/api";
 import logoImg from "@/assets/logo.png";
 
 interface SuccessPageProps {
@@ -17,24 +16,20 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
   useEffect(() => {
     if (!notified) {
       setNotified(true);
-      sendSubmissionEmail({
-        to_email: candidate.email,
-        to_name: `${candidate.profile?.firstName || ''} ${candidate.profile?.lastName || ''}`.trim() || candidate.email,
-        role: candidate.role,
-        candidate_id: candidate.candidateId,
-      });
+      // Email is sent by backend when profile is submitted
+      // We just show success message
     }
   }, []);
 
   const handleWhatsApp = () => {
     const phone = candidate.profile?.whatsapp || candidate.profile?.phone || '';
     const name = `${candidate.profile?.firstName || ''} ${candidate.profile?.lastName || ''}`.trim();
-    sendSubmissionWhatsApp(name, candidate.candidateId, candidate.role, phone);
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    onLogout();
+    const message = `✅ *Application Submitted – Kyakabi Group*\n\nDear ${name},\n\nYour application for *${candidate.role}* has been successfully submitted (ID: ${candidate.candidateId}).\n\n📅 *Next Steps:*\nInterviews will be scheduled before *10th March 2026*.\n\nWe'll contact you shortly with interview details.\n\n*Kyakabi Group Limited* | Do More. Be More\n📧 a.ddumba@kyakabi.com`;
+    
+    const encodedMessage = encodeURIComponent(message);
+    const cleanNumber = phone.replace(/\D/g, '');
+    const url = `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
+    window.open(url, '_blank');
   };
 
   const name = `${candidate.profile?.firstName || ''} ${candidate.profile?.lastName || ''}`.trim() || 'Candidate';
@@ -65,7 +60,7 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
           className="bg-card rounded-3xl shadow-brand-lg border p-8 text-center"
         >
           {/* Checkmark animation */}
-          <motion.div
+          {/* <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
@@ -74,7 +69,7 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
             <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center animate-pulse-green">
               <CheckCircle2 className="h-9 w-9 text-primary-foreground" />
             </div>
-          </motion.div>
+          </motion.div> */}
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
             <h1 className="text-3xl font-display font-bold text-foreground mb-2">
@@ -109,7 +104,7 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Applied Role</p>
-                <p className="font-semibold text-foreground">{candidate.role}</p>
+                <p className="font-semibold text-foreground">{candidate.role}</p> {/* Uncomment this line */}
               </div>
             </div>
             <div className="flex items-center gap-3 bg-accent/50 rounded-xl px-4 py-3 text-left">
@@ -132,7 +127,7 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
             <ol className="space-y-2">
               {[
                 "Our team will review your application",
-                "You'll receive an interview schedule via email & WhatsApp",
+                "You'll receive an interview schedule via email",
                 "Prepare for a remote interview session",
                 "Final decisions communicated within 2 weeks",
               ].map((step, i) => (
@@ -151,15 +146,17 @@ export default function SuccessPage({ candidate, onLogout }: SuccessPageProps) {
             transition={{ delay: 0.7 }}
             className="space-y-3"
           >
-            <Button
-              onClick={handleWhatsApp}
-              variant="outline"
-              className="w-full border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Get WhatsApp Confirmation
-            </Button>
-            <Button variant="outline" className="w-full" onClick={handleLogout}>
+            {/* {candidate.profile?.whatsapp && (
+              <Button
+                onClick={handleWhatsApp}
+                variant="outline"
+                className="w-full border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Get WhatsApp Confirmation
+              </Button>
+            )} */}
+            <Button variant="outline" className="w-full" onClick={onLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Exit Portal
             </Button>

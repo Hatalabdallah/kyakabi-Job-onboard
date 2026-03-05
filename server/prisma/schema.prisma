@@ -1,0 +1,67 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. The main Account table
+model Candidate {
+  id               String   @id @default(uuid())
+  candidateId      String   @unique // The "KG-XXXXXX" ID
+  email            String   @unique
+  password         String   // Hashed version
+  role             String
+  status           String   @default("pending")
+  submitted        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Interview fields
+  interviewDate    String?  // Store as ISO string
+  interviewLink    String?
+  interviewNotes   String?  @db.Text
+  
+  // Relationship: One candidate has one profile
+  profile          Profile?
+}
+
+// 2. The detailed Profile table
+model Profile {
+  id               String    @id @default(uuid())
+  firstName        String
+  lastName         String
+  phone            String
+  whatsapp         String?
+  gender           String
+  dateOfBirth      String?
+  city             String
+  country          String
+  nationality      String
+  currentTitle     String
+  yearsExperience  String
+  skills           String[]  // Only works on PostgreSQL
+  certifications   String[]
+  coverLetter      String?   @db.Text
+  
+  // File URLs (we store the link to the file, not the file itself)
+  cvUrl            String?
+  portfolioUrl     String?
+  certificatesUrl  String[]  // Array of certificate file paths
+  
+  // Connect this back to the Candidate
+  candidateId      String    @unique
+  candidate        Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String   // Hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

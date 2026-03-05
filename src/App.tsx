@@ -8,7 +8,7 @@ import ProfileSetup from "./pages/ProfileSetup";
 import SuccessPage from "./pages/SuccessPage";
 import AdminPanel from "./pages/AdminPanel";
 import AdminLogin from "./pages/AdminLogin";
-import { getCurrentUser, isAdminLoggedIn, initializeStorage, type Candidate } from "./lib/storage";
+import { type Candidate } from "./lib/api";
 
 const queryClient = new QueryClient();
 
@@ -19,26 +19,6 @@ export default function App() {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
 
   useEffect(() => {
-    initializeStorage();
-
-    // Check for existing session
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      if (currentUser.submitted) {
-        setCandidate(currentUser);
-        setView("success");
-      } else {
-        setCandidate(currentUser);
-        setView("profile");
-      }
-      return;
-    }
-
-    // Check admin session
-    if (isAdminLoggedIn()) {
-      setView("admin");
-    }
-
     // Check URL for admin
     if (window.location.hash === "#admin") {
       setView("admin-login");

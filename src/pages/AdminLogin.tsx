@@ -4,7 +4,7 @@ import { Shield, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { adminLogin } from "@/lib/storage";
+import { api } from "@/lib/api";
 import logoImg from "@/assets/logo.png";
 
 interface AdminLoginProps {
@@ -22,14 +22,16 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    await new Promise(r => setTimeout(r, 800));
 
-    if (adminLogin(password)) {
+    try {
+      // Username is always 'admin' for simplicity
+      await api.adminLogin('admin', password);
       onLogin();
-    } else {
-      setError("Incorrect admin password. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Invalid password");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -42,9 +44,9 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
         >
           <div className="text-center mb-6">
             <img src={logoImg} alt="Kyakabi" className="h-12 mx-auto mb-4" />
-            <div className="w-12 h-12 bg-brand-navy rounded-xl flex items-center justify-center mx-auto mb-3">
+            {/* <div className="w-12 h-12 bg-brand-navy rounded-xl flex items-center justify-center mx-auto mb-3">
               <Shield className="h-6 w-6 text-white" />
-            </div>
+            </div> */}
             <h1 className="font-display font-bold text-xl">Admin Access</h1>
             <p className="text-muted-foreground text-sm mt-1">Restricted area – authorized personnel only</p>
           </div>
@@ -84,7 +86,7 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
           </form>
 
           <p className="text-center text-xs text-muted-foreground mt-4">
-            Demo password: <strong>Admin@KG2024</strong>
+            Default password: <strong>Admin@KG2024</strong>
           </p>
         </motion.div>
       </div>

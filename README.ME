@@ -1,0 +1,333 @@
+Good.
+
+We move cleanly. No half-measures.
+
+# Phase 1 — Backend Architecture Decision
+
+Based on your current frontend (React + TS + localStorage + file base64 storage), you need:
+
+* Persistent database
+* File storage (CVs, certificates)
+* Email sending
+* WhatsApp trigger
+* Admin authentication
+* Candidate authentication
+* Role-based access
+* Status management
+* Audit/notification logs
+
+## I am choosing:
+
+### Backend Stack
+
+* **Node.js**
+* **Express**
+* **PostgreSQL**
+* **Prisma ORM**
+* **JWT Authentication**
+* **Multer (file uploads)**
+* **Nodemailer (email)**
+* Clean REST API
+
+Reason:
+Matches your TypeScript frontend. Clean transition. No tech shock.
+
+---
+
+# Phase 2 — Proper Data Model (No More localStorage)
+
+## Tables
+
+### 1. users
+
+```
+id (uuid)
+email (unique)
+password_hash
+role (admin | candidate)
+created_at
+updated_at
+```
+
+---
+
+### 2. candidates
+
+```
+id (uuid)
+user_id (FK -> users.id)
+candidate_id (string, unique)
+role_applied (string)
+status (enum)
+submitted (boolean)
+interview_date (timestamp nullable)
+interview_link (text nullable)
+interview_notes (text nullable)
+created_at
+updated_at
+```
+
+---
+
+### 3. candidate_profiles
+
+```
+id (uuid)
+candidate_id (FK)
+first_name
+last_name
+phone
+whatsapp
+city
+country
+nationality
+gender
+date_of_birth
+current_title
+years_experience
+linkedin
+portfolio
+cover_letter
+location (derived)
+```
+
+---
+
+### 4. skills
+
+```
+id
+candidate_id (FK)
+name
+```
+
+---
+
+### 5. certifications
+
+```
+id
+candidate_id (FK)
+name
+```
+
+---
+
+### 6. files
+
+```
+id
+candidate_id (FK)
+type (cv | portfolio | certificate)
+file_name
+file_path
+file_size
+mime_type
+```
+
+Files stored physically on disk or S3.
+NO MORE base64 in DB.
+
+---
+
+### 7. notifications
+
+```
+id
+candidate_id (FK)
+type (interview | approval)
+subject
+recipient
+sent_at
+status
+```
+
+---
+
+# Phase 3 — API Structure
+
+## Auth
+
+```
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/admin-login
+GET    /api/auth/me
+POST   /api/auth/logout
+```
+
+---
+
+## Candidate
+
+```
+POST   /api/candidates
+GET    /api/candidates
+GET    /api/candidates/:id
+PUT    /api/candidates/:id
+DELETE /api/candidates/:id
+PATCH  /api/candidates/:id/status
+```
+
+---
+
+## Files
+
+```
+POST   /api/candidates/:id/upload
+GET    /api/files/:id/download
+```
+
+---
+
+## Notifications
+
+```
+POST   /api/candidates/:id/schedule-interview
+POST   /api/candidates/:id/approve
+GET    /api/notifications
+```
+
+---
+
+# Phase 4 — Migration Strategy
+
+We do NOT rewrite frontend.
+
+We:
+
+1. Replace:
+
+   * `getCandidates`
+   * `saveCandidate`
+   * `deleteCandidate`
+   * `getEmailLogs`
+   * `sendInterviewEmail`
+   * etc
+
+With API calls.
+
+Frontend logic stays almost identical.
+
+Only storage layer changes.
+
+---
+
+# Phase 5 — Execution Order
+
+We build in this order:
+
+1. Backend project scaffold
+2. Database schema (Prisma)
+3. Auth system
+4. Candidate CRUD
+5. File upload
+6. Interview scheduling endpoint
+7. Email integration
+8. Replace frontend storage.ts
+9. Remove localStorage entirely
+
+---
+
+# Now I Need From You
+
+Answer only this:
+
+Do you want:
+
+A) Local server first (PostgreSQL on your machine)
+B) Production-ready structure immediately (Dockerized + clean env separation)
+
+Choose A or B.
+
+No explanation. Just choose.
+
+
+I have reviewed the complete codebase for the Kyakabi Group Recruitment Portal. The architecture uses a multi-step functional component pattern with `framer-motion` for state transitions and a heavy reliance on a central `storage.ts` utility.
+
+The current implementation is robust for a prototype but faces two critical technical hurdles for production:
+
+1. **Payload Size**: Storing Base64 file data (CVs, portfolios) in `localStorage` will quickly hit the ~5MB browser limit.
+2. **Data Persistence**: Data is local to the device/browser, making cross-device admin review impossible.
+
+---
+
+### Phase 1: Backend Architecture (The "Heavy Lift")
+
+To migrate this to a professional **PostgreSQL + Prisma + Express** stack, we need to decouple the state management from the client.
+
+#### 1. Database Schema (Prisma)
+
+We will move from the `Candidate` interface to a relational model.
+
+```prisma
+model Candidate {
+  id               String   @id @default(uuid())
+  candidateId      String   @unique // e.g., KG-XXXXXX
+  email            String   @unique
+  password         String
+  role             String
+  status           Status   @default(PENDING)
+  submitted        Boolean  @default(false)
+  profile          Profile?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Profile {
+  id               String    @id @default(uuid())
+  candidateId      String    @unique
+  candidate        Candidate @relation(fields: [candidateId], references: [id])
+  firstName        String
+  lastName         String
+  phone            String
+  whatsapp         String?
+  city             String
+  country          String
+  yearsExperience  String
+  skills           String[]  // PostgreSQL supports native string arrays
+  cvUrl            String    // Storage path (S3/Cloudinary), not Base64
+  // ... other fields
+}
+
+enum Status {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  INTERVIEW_SCHEDULED
+  APPROVED
+  REJECTED
+}
+
+```
+
+---
+
+### Phase 2: Implementation Strategy
+
+#### 1. File Upload Strategy
+
+Since you are dealing with PDFs and high-res images, we must stop storing files in the database.
+
+* **Transition:** In `ProfileSetup.tsx`, instead of `fileToData` (Base64), we will send a `FormData` object to a `/api/upload` endpoint.
+* **Storage:** Use an S3-compatible bucket (or Cloudinary) and store only the resulting **URL** in the PostgreSQL `Profile` table.
+
+#### 2. Authentication Logic
+
+* **Current:** `hashPassword` in the browser.
+* **New:** Send the raw password over HTTPS; use `bcrypt` on the server for hashing. Implement **JWT (JSON Web Tokens)** for session persistence, replacing the `setCurrentUser` local storage logic.
+
+#### 3. Admin & Notifications
+
+* The logic in `AdminPanel.tsx` and `notifications.ts` will move to the server.
+* Instead of the browser triggering an email via `EmailJS` (which exposes API keys), the server will use a dedicated service like **Resend** or **Postmark** to ensure deliverability to `.com` and `.ug` addresses.
+
+---
+
+### Phase 3: Immediate Code Refinements
+
+While prepping for the backend move, I recommend these immediate fixes to `ProfileSetup.tsx`:
+
+* **Input Sanitization**: Add a regex check for the `phone` field to ensure the `+256` format is followed.
+* **Memory Management**: Currently, large files are held in state as Base64 strings. If a user uploads a 10MB PDF, the UI may lag.
+* **Next Step**: Would you like me to generate the **Express.js API routes** and the **Prisma migration file** to begin the transition from LocalStorage to PostgreSQL?

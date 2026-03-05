@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { api, type Candidate, type CandidateProfile } from "@/lib/api";
+
 import {
-  User, MapPin, Briefcase, FileText, Upload, Check, ChevronRight, ChevronLeft,
+  User, Briefcase, FileText, Upload, Check, ChevronRight, ChevronLeft,
   Plus, X, AlertCircle, RefreshCw, Star, Award
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { saveCandidate, setCurrentUser, type Candidate, type CandidateProfile } from "@/lib/storage";
 import logoImg from "@/assets/logo.png";
 
 const STEPS = [
@@ -45,18 +46,18 @@ export default function ProfileSetup({ candidate, onComplete }: ProfileSetupProp
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   // Form data
-  const [form, setForm] = useState<CandidateProfile>({
+  const [form, setForm] = useState<Omit<CandidateProfile, 'cvUrl' | 'portfolioUrl'>>({
     firstName: "", lastName: "", phone: "", whatsapp: "",
-    location: "", city: "", country: "Uganda", gender: "", dateOfBirth: "", nationality: "",
+    city: "", country: "Uganda", gender: "", dateOfBirth: "", nationality: "",
     currentTitle: "", yearsExperience: "", skills: [], certifications: [],
-    linkedIn: "", portfolio: "", coverLetter: "",
+    coverLetter: "",
   });
 
   const [cvFile, setCvFile] = useState<FileData | null>(null);
   const [portfolioFile, setPortfolioFile] = useState<FileData | null>(null);
   const [certFiles, setCertFiles] = useState<FileData[]>([]);
 
-  const update = (field: keyof CandidateProfile, value: string | string[]) => {
+  const update = (field: keyof typeof form, value: string | string[]) => {
     setForm(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
   };
@@ -145,28 +146,60 @@ export default function ProfileSetup({ candidate, onComplete }: ProfileSetupProp
 
   const handleSubmit = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1500));
+    
+    try {
+      const profileData = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: form.phone,
+        whatsapp: form.whatsapp || "",
+        gender: form.gender,
+        dateOfBirth: form.dateOfBirth || "",
+        city: form.city,
+        country: form.country,
+        nationality: form.nationality,
+        currentTitle: form.currentTitle,
+        yearsExperience: form.yearsExperience,
+        skills: form.skills,
+        certifications: form.certifications,
+        coverLetter: form.coverLetter || "",
+      };
 
-    const updatedProfile: CandidateProfile = {
-      ...form,
-      location: `${form.city}, ${form.country}`,
-      cvFile: cvFile || undefined,
-      portfolioFile: portfolioFile || undefined,
-      certificateFiles: certFiles.length > 0 ? certFiles : undefined,
-    };
+      const files: { cv?: File; portfolio?: File; certificates?: File[] } = {};
+      
+      if (cvFile) {
+        const response = await fetch(cvFile.data);
+        const blob = await response.blob();
+        files.cv = new File([blob], cvFile.name, { type: cvFile.type });
+      }
+      
+      if (portfolioFile) {
+        const response = await fetch(portfolioFile.data);
+        const blob = await response.blob();
+        files.portfolio = new File([blob], portfolioFile.name, { type: portfolioFile.type });
+      }
 
-    const updatedCandidate: Candidate = {
-      ...candidate,
-      profile: updatedProfile,
-      submitted: true,
-      status: "pending",
-      updatedAt: new Date().toISOString(),
-    };
+      if (certFiles.length > 0) {
+        files.certificates = [];
+        for (const certFile of certFiles) {
+          const response = await fetch(certFile.data);
+          const blob = await response.blob();
+          const file = new File([blob], certFile.name, { type: certFile.type });
+          files.certificates.push(file);
+        }
+      }
 
-    saveCandidate(updatedCandidate);
-    setCurrentUser(updatedCandidate);
-    setLoading(false);
-    onComplete(updatedCandidate);
+      const result = await api.saveProfile(candidate.candidateId, profileData, files);
+      
+      const updatedCandidate = result.candidate;
+      
+      setLoading(false);
+      onComplete(updatedCandidate);
+    } catch (error: any) {
+      console.error("Profile save error:", error);
+      setLoading(false);
+      alert(error.message || "Something went wrong saving to the server.");
+    }
   };
 
   const progressPercent = ((currentStep - 1) / (STEPS.length - 1)) * 100;
@@ -315,10 +348,6 @@ export default function ProfileSetup({ candidate, onComplete }: ProfileSetupProp
                         </SelectContent>
                       </Select>
                       {errors.yearsExperience && <p className="text-destructive text-xs mt-1">{errors.yearsExperience}</p>}
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">LinkedIn Profile</Label>
-                      <Input className="mt-1.5" placeholder="linkedin.com/in/yourprofile" value={form.linkedIn} onChange={e => update("linkedIn", e.target.value)} />
                     </div>
                   </div>
 
