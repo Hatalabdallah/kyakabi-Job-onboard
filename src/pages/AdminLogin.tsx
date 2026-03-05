@@ -85,9 +85,9 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
             </Button>
           </form>
 
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          {/* <p className="text-center text-xs text-muted-foreground mt-4">
             Default password: <strong>Admin@KG2024</strong>
-          </p>
+          </p> */}
         </motion.div>
       </div>
     </div>
