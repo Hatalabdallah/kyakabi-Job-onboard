@@ -51,11 +51,12 @@ const upload = multer({
 app.use('/uploads', express.static(uploadDir));
 
 // Production CORS configuration
+// Production CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://kyakabi-recruit.vercel.app',
-  'https://kyakabi.com',
-  'https://www.kyakabi.com'
+  'http://localhost:8080',
+  'https://kyakabi-job-onboard.vercel.app/',
+  'https://recruit.kyakabi.com' // Add this line
 ];
 
 app.use(cors({
